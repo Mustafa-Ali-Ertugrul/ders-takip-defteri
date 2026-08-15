@@ -17,6 +17,7 @@
 - **İstatistik kartları** — toplam süre, bu haftaki süre (haftalık hedef çubuğu), en sık çalışılan ders, günlük çalışma serisi (streak)
 - **Ders dağılım grafiği** — derslere göre renkli yüzdeler
 - **JSON yedekleme** — tüm kayıtları tek tıkla yedek dosyası olarak indirme
+- **Yedekten geri yükleme** — indirilen JSON yedeğindeki kayıtları içeri aktarma (alan bazlı doğrulama ile)
 - **Form doğrulama** — süre aralığı (1–1440 dk), zorunlu alanlar, gelecek tarih engeli
 - Tamamı Türkçe arayüz, responsive tasarım
 
@@ -28,6 +29,7 @@
 | CSS (pure) | Stil ve responsive tasarım |
 | JavaScript (vanilla) | Uygulama mantığı, CRUD işlemleri, DOM manipülasyonu |
 | localStorage | Veri saklama |
+| Playwright (yalnızca testler) | `tests/` klasöründeki otomatik uçtan uca testler |
 
 ## Projede Yapılan CRUD İşlemleri
 
@@ -42,6 +44,16 @@
 
 Repo'yu indirin ve `index.html` dosyasını tarayıcıda açın. Başka bir kurulum gerekmez.
 
+## Testler
+
+`tests/` klasöründe uygulamanın uçtan uca işlevsel testleri (CRUD, validasyonlar, yedek alma/geri yükleme, Türkçe arama, mobil görünüm — toplam 21 test) bulunur:
+
+```bash
+pip install playwright      # bir kez
+python -m playwright install chromium   # bir kez, tarayıcıyı indirir
+python tests/app_test.py    # testleri çalıştırır
+```
+
 ## Not
 
-Uygulama verileri yalnızca kullandığınız tarayıcıda saklar; farklı cihaz veya tarayıcılarda veriler paylaşılır. Kayıtlarınızı "JSON Yedek" butonuyla dışa aktarabilirsiniz.
+Uygulama verileri yalnızca kullandığınız tarayıcıda saklar; farklı cihaz veya tarayıcılarda veriler **paylaşılmaz**. Kayıtlarınızı "⤓ JSON Yedek" butonuyla dışa aktarabilir, "⤒ Yedek Yükle" butonuyla geri yükleyebilirsiniz.
