@@ -6,8 +6,8 @@ let editId  = null;
 
 function getStudies(){
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    // Okuma katmanı: bozuk JSON → [], geçersiz kayıtlar temizlenir (parseStudies)
+    return parseStudies(localStorage.getItem(STORAGE_KEY));
   } catch (e) {
     console.warn('Depo okunamadı:', e);
     return [];

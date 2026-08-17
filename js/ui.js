@@ -1,22 +1,13 @@
 /* ============================================================
    4) RENDER & ANALİTİK
 ============================================================ */
+/* DOM durumunu okuyup saf çekirdek filtresi (getVisibleStudies) ile liste döndürür */
 function getVisibleList(){
-  const f    = $('filterDers').value;
-  const q    = $('searchInput').value.trim().toLocaleLowerCase('tr');
-  const sort = $('sortSelect').value;
-
-  let list = studies.filter(s =>
-    (!f || s.ders === f) &&
-    (!q || (s.not || '').toLocaleLowerCase('tr').includes(q) ||
-           s.ders.toLocaleLowerCase('tr').includes(q))
-  );
-  list.sort((a,b) => {
-    if (sort === 'sure') return b.sure - a.sure;
-    if (sort === 'ders') return a.ders.localeCompare(b.ders, 'tr');
-    return b.tarih.localeCompare(a.tarih) || (b.createdAt || 0) - (a.createdAt || 0);
+  return getVisibleStudies(studies, {
+    f:    $('filterDers').value,
+    q:    $('searchInput').value,
+    sort: $('sortSelect').value
   });
-  return list;
 }
 
 function renderTable(){

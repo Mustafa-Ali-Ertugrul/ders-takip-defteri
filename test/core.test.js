@@ -8,7 +8,7 @@ const core = require('../js/core.js');
 
 const {
   pad, toISO, esc, fmtSure,
-  sortStudies, getVisibleList, sanitizeStudy, sanitizeStudies,
+  sortStudies, getVisibleStudies, sanitizeStudy, sanitizeStudies, parseStudies,
   validateStudy, hesaplaIstatistik, mixWithWhite, uid
 } = core;
 
@@ -79,25 +79,25 @@ test('sortStudies: orijinal dizi değişmez', () => {
 
 /* ---------- getVisibleList ---------- */
 test('getVisibleList: ders filtresi', () => {
-  const s = getVisibleList(KAYITLAR, { f:'Matematik' });
+  const s = getVisibleStudies(KAYITLAR, { f:'Matematik' });
   assert.equal(s.length, 2);
   assert.ok(s.every(x => x.ders === 'Matematik'));
 });
 
 test('getVisibleList: arama (küçük i / büyük İ — Türkçe locale)', () => {
-  assert.equal(getVisibleList(KAYITLAR, { q:'ingiliz' }).length, 0);
+  assert.equal(getVisibleStudies(KAYITLAR, { q:'ingiliz' }).length, 0);
   const ing = [ ...KAYITLAR, { id:'e', ders:'İngilizce', sure:30, tarih:'2026-08-14' } ];
-  assert.equal(getVisibleList(ing, { q:'ingilizce' }).length, 1);
-  assert.equal(getVisibleList(ing, { q:'İNGİLİZCE' }).length, 1);
+  assert.equal(getVisibleStudies(ing, { q:'ingilizce' }).length, 1);
+  assert.equal(getVisibleStudies(ing, { q:'İNGİLİZCE' }).length, 1);
 });
 
 test('getVisibleList: filtre + arama + sırala birlikte', () => {
-  const s = getVisibleList(KAYITLAR, { f:'Matematik', q:'mat', sort:'sure' });
+  const s = getVisibleStudies(KAYITLAR, { f:'Matematik', q:'mat', sort:'sure' });
   assert.equal(s.length, 2);
 });
 
 test('getVisibleList: boş opts ile varsayılan tarih sıralaması', () => {
-  const s = getVisibleList(KAYITLAR);
+  const s = getVisibleStudies(KAYITLAR);
   assert.deepEqual(s.map(x => x.id), ['c','b','d','a']);
 });
 
@@ -180,6 +180,32 @@ test('sanitizeStudies: özel dersler listesi onur', () => {
     dersler: [{ ad:'Müzik', renk:'#000000' }, { ad:'Diğer', renk:'#7a8499' }] });
   assert.equal(temiz[0].ders, 'Müzik'); // özel listede var → korunur
 });
+
+/* ---------- parseStudies (okuma katmanı) ---------- */
+test('parseStudies: boş / bozuk JSON → boş dizi', () => {
+  assert.deepEqual(parseStudies(null), []);
+  assert.deepEqual(parseStudies(''), []);
+  assert.deepEqual(parseStudies('{bozuk json'), []);
+});
+
+test('parseStudies: geçerli JSON metni temizlenerek çözülür', () => {
+  const ham = JSON.stringify([
+    { ders:'Yazılım', sure:45, tarih:'2026-08-13' },
+    { ders:'Uydurma', sure:45, tarih:'2099-12-31' }, // gelecek tarih → elenir
+  ]);
+  const temiz = parseStudies(ham, { bugun: BUGUN });
+  assert.equal(temiz.length, 1);
+  assert.deepEqual(temiz[0], {
+    ders:'Yazılım', sure:45, tarih:'2026-08-13',
+    id: temiz[0].id, not:'', createdAt: new Date('2026-08-13T00:00').getTime(),
+  });
+});
+
+test('parseStudies: dizi olmayan kök (nesne/sayı) → boş dizi', () => {
+  assert.deepEqual(parseStudies('{"a":1}'), []);
+  assert.deepEqual(parseStudies('42'), []);
+});
+
 
 /* ---------- validateStudy ---------- */
 test('validateStudy sınırları', () => {

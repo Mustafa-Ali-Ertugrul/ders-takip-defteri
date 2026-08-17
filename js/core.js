@@ -48,7 +48,7 @@ function sortStudies(list, mode){
   });
 }
 
-function getVisibleList(list, opts){
+function getVisibleStudies(list, opts){
   opts = opts || {};
   const f = opts.f || '';
   const q = (opts.q || '').trim().toLocaleLowerCase('tr');
@@ -97,6 +97,16 @@ function sanitizeStudies(data, opts){
     out.push(s);
   }
   return out;
+}
+
+/* Ham depo/JSON metnini çözüp temizleyen okuma katmanı.
+   Bozuk JSON → boş liste; geçerli veri sanitize edilir. */
+function parseStudies(rawText, opts){
+  if (!rawText) return [];
+  let data;
+  try { data = JSON.parse(rawText); }
+  catch (e) { return []; }
+  return sanitizeStudies(data, opts);
 }
 
 /* Form girişini doğrular; hatalıysa kullanıcı mesajını, temizse null döndürür */
@@ -150,6 +160,6 @@ function mixWithWhite(hex, oran){
 /* Node birim testleri için dışa aktarım (tarayıcıda çalışırken etkisizdir) */
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { STORAGE_KEY, WEEKLY_GOAL, DERSLER, renkMap, $, pad, toISO, uid, esc,
-    fmtSure, fmtTarih, sortStudies, getVisibleList, sanitizeStudy, sanitizeStudies,
-    validateStudy, hesaplaIstatistik, mixWithWhite };
+    fmtSure, fmtTarih, sortStudies, getVisibleStudies, sanitizeStudy, sanitizeStudies,
+    parseStudies, validateStudy, hesaplaIstatistik, mixWithWhite };
 }

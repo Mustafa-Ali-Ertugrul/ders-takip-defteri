@@ -9,12 +9,9 @@ function saveStudy(e){
   const tarih  = $('inputDate').value;
   const not    = $('inputNote').value.trim();
 
-  // Ön validasyon
-  if (!ders)                     return formHatasi('Bir ders seçmelisin. ✏');
-  if (!sure || sure < 1 || sure > 1440)
-                                 return formHatasi('Süre 1–1440 dakika aralığında olmalı.');
-  if (!tarih)                    return formHatasi('Tarih seçmeyi unuttun.');
-  if (tarih > toISO(new Date())) return formHatasi('Gelecek bir tarihe kayıt eklenemez.');
+  // Ön validasyon — saf çekirdek (validateStudy) ile tek noktadan
+  const hata = validateStudy({ ders, sure, tarih }, toISO(new Date()));
+  if (hata) return formHatasi(hata);
 
   if (editId) {
     // GÜNCELLEME
@@ -36,7 +33,10 @@ function editStudy(id){
   const s = studies.find(x => x.id === id);
   if (!s) return;
   openModal();
-  const radio = document.querySelector(`input[name="ders"][value="${s.ders}"]`);
+  // Güvenli seçici: attribute selector yerine value karşılaştırması (özel ders adı tırnak/özel
+  // karakter içeremez ama querySelector'da CSS escape riskini sıfırlar)
+  const radio = Array.from(document.querySelectorAll('input[name="ders"]'))
+    .find(r => r.value === s.ders);
   if (radio) radio.checked = true;
   $('inputSure').value = s.sure;
   $('inputDate').value = s.tarih;
@@ -73,26 +73,8 @@ function importStudies(event){
     if (!Array.isArray(data))
       return toast('Dosya biçimi hatalı — kayıt listesi (dizi) bekleniyordu.', 'danger');
 
-    const dersAdlari = new Set(DERSLER.map(d => d.ad));
-    const bugun = toISO(new Date());
-    const temiz = [];
-
-    for (const raw of data) {
-      if (!raw || typeof raw !== 'object') continue;
-      const ders = dersAdlari.has(raw.ders) ? raw.ders : 'Diğer';
-      const sure = Math.round(Number(raw.sure));
-      const tarih = typeof raw.tarih === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.tarih)
-        && new Date(raw.tarih + 'T00:00').toString() !== 'Invalid Date'
-        && raw.tarih <= bugun ? raw.tarih : '';
-      if (!sure || sure < 1 || sure > 1440 || !tarih) continue;
-
-      temiz.push({
-        id:        typeof raw.id === 'string' && raw.id ? raw.id : uid(),
-        ders, sure, tarih,
-        not:       typeof raw.not === 'string' ? raw.not.slice(0, 120) : '',
-        createdAt: Number(raw.createdAt) || new Date(tarih + 'T00:00').getTime()
-      });
-    }
+    // Kayıt temizliği saf çekirdeğe emanet: ders beyaz listesi, süre/tarih sınırı, tekil id
+    const temiz = sanitizeStudies(data);
 
     if (!temiz.length) return toast('Yedek dosyasında geçerli kayıt bulunamadı.', 'danger');
 
