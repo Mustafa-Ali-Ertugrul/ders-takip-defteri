@@ -2,13 +2,18 @@
    1) SABİTLER ve YARDIMCILAR
 ============================================================ */
 const STORAGE_KEY  = 'dersTakipStudies';
-const WEEKLY_GOAL  = 300; // dk (5 saat)
+const SUBJECTS_KEY = 'dersTakipSubjects'; // M6: özel ders listesi [{ad, renk}]
+const GOAL_KEY     = 'dersTakipGoal';     // M6: haftalık hedef (dakika)
+const WEEKLY_GOAL  = 300; // dk (5 saat) — varsayılan haftalık hedef
+const RENK_DIGER   = '#7a8499';
+/* Özel dersler için 8 renkli palet; renk tükenince başa döner (M6) */
+const PALET = ['#2f6fd0','#2f9e63','#e2802e','#9a5fd0','#5aa02f','#0f9ba8','#c0563f','#d65a86'];
 const DERSLER = [
   { ad:'Matematik', renk:'#2f6fd0' }, { ad:'Yazılım',    renk:'#2f9e63' },
   { ad:'Fizik',     renk:'#e2802e' }, { ad:'Kimya',      renk:'#9a5fd0' },
   { ad:'Biyoloji',  renk:'#5aa02f' }, { ad:'İngilizce',  renk:'#0f9ba8' },
   { ad:'Tarih',     renk:'#c0563f' }, { ad:'Edebiyat',   renk:'#d65a86' },
-  { ad:'Diğer',     renk:'#7a8499' }
+  { ad:'Diğer',     renk:RENK_DIGER }
 ];
 const renkMap = Object.fromEntries(DERSLER.map(d => [d.ad, d.renk]));
 
@@ -157,9 +162,86 @@ function mixWithWhite(hex, oran){
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
 }
 
+/* ============================================================
+   1c) M6 — DERS LİSTESİ ve HEDEF YARDIMCILARI (saf, test edilebilir)
+============================================================ */
+
+/* #rrggbb biçiminde geçerli bir renk mi? */
+function renkGecerliMi(v){
+  return typeof v === 'string' && /^#[0-9a-f]{6}$/i.test(v);
+}
+
+/* Ders listesine yeni adlar ekler; mevcutları (büyük/küçük harf duyarsız)
+   atlar, yenilere paletten sırayla renk verir. { liste, eklenen } döner.
+   Kaynak liste kopyalanır — girdi değiştirilmez. */
+function extendSubjects(dersler, adlar){
+  const liste = (dersler || []).map(d => ({ ad: d.ad, renk: d.renk }));
+  const varMi = new Set(liste.map(d => d.ad.toLocaleLowerCase('tr')));
+  let eklenen = 0;
+  for (const ham of (adlar || [])) {
+    if (typeof ham !== 'string') continue;
+    const ad = ham.trim();
+    if (!ad || ad.length > 50) continue;
+    const anahtar = ad.toLocaleLowerCase('tr');
+    if (varMi.has(anahtar)) continue;
+    varMi.add(anahtar);
+    liste.push({ ad, renk: PALET[liste.length % PALET.length] });
+    eklenen++;
+  }
+  return { liste, eklenen };
+}
+
+/* Depodan gelen ders listesini temizler: geçersiz adlar/renkler elenir,
+   yinelenenler atlanır, renk paletten tamamlanır ve 'Diğer' her zaman
+   bulunur (sanitizeStudy'nin bilinmeyen ders yedeği). Liste boş/geçersizse
+   varsayılan DERSLER döner. */
+function sanitizeSubjects(raw){
+  let liste = DERSLER.map(d => ({ ad: d.ad, renk: d.renk }));
+  if (Array.isArray(raw)) {
+    const temiz = [];
+    const varMi = new Set();
+    for (const it of raw) {
+      if (!it || typeof it !== 'object') continue;
+      const ad = typeof it.ad === 'string' ? it.ad.trim() : '';
+      if (!ad || ad.length > 50) continue;
+      const anahtar = ad.toLocaleLowerCase('tr');
+      if (varMi.has(anahtar)) continue;
+      varMi.add(anahtar);
+      const renk = renkGecerliMi(it.renk) ? it.renk : PALET[temiz.length % PALET.length];
+      temiz.push({ ad, renk });
+    }
+    if (temiz.length) liste = temiz;
+  }
+  if (!liste.some(d => d.ad === 'Diğer'))
+    liste = liste.concat([{ ad: 'Diğer', renk: RENK_DIGER }]);
+  return liste;
+}
+
+/* Yeni ders adını doğrular: boş değil, en çok 50 karakter, benzersiz
+   (Türkçe büyük/küçük harf duyarsız). { hata, ad } döner. */
+function validateSubjectName(ad, mevcut){
+  const temiz = String(ad ?? '').trim();
+  if (!temiz) return { hata: 'Ders adı boş olamaz.', ad: '' };
+  if (temiz.length > 50)
+    return { hata: 'Ders adı en fazla 50 karakter olabilir.', ad: temiz };
+  const anahtar = temiz.toLocaleLowerCase('tr');
+  if ((mevcut || []).some(m => m.ad.toLocaleLowerCase('tr') === anahtar))
+    return { hata: `"${temiz}" adında bir ders zaten var.`, ad: temiz };
+  return { hata: null, ad: temiz };
+}
+
+/* Haftalık hedefi doğrular: 30–3000 dakika arası tamsayı; değilse null. */
+function sanitizeGoal(raw){
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n) || n < 30 || n > 3000) return null;
+  return n;
+}
+
 /* Node birim testleri için dışa aktarım (tarayıcıda çalışırken etkisizdir) */
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { STORAGE_KEY, WEEKLY_GOAL, DERSLER, renkMap, $, pad, toISO, uid, esc,
+  module.exports = { STORAGE_KEY, SUBJECTS_KEY, GOAL_KEY, WEEKLY_GOAL, RENK_DIGER, PALET,
+    DERSLER, renkMap, $, pad, toISO, uid, esc,
     fmtSure, fmtTarih, sortStudies, getVisibleStudies, sanitizeStudy, sanitizeStudies,
-    parseStudies, validateStudy, hesaplaIstatistik, mixWithWhite };
+    parseStudies, validateStudy, hesaplaIstatistik, mixWithWhite,
+    renkGecerliMi, extendSubjects, sanitizeSubjects, validateSubjectName, sanitizeGoal };
 }

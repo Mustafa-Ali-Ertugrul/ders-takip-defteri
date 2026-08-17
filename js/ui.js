@@ -27,7 +27,7 @@ function renderTable(){
     tbody.innerHTML = list.map((s,i) => `
       <tr style="--i:${i}">
         <td title="${esc(s.tarih)}">${fmtTarih(s.tarih)}</td>
-        <td><span class="badge" style="--c:${renkMap[s.ders] || '#7a8499'}"><i></i>${esc(s.ders)}</span></td>
+        <td><span class="badge" style="--c:${renkOf(s.ders)}"><i></i>${esc(s.ders)}</span></td>
         <td class="dur">${fmtSure(s.sure)}</td>
         <td class="not hide-sm">${s.not ? esc(s.not) : '—'}</td>
         <td><div class="acts">
@@ -56,10 +56,10 @@ function updateStatistics(){
     .filter(s => new Date(s.tarih + 'T00:00') >= pzt)
     .reduce((t,s) => t + Number(s.sure), 0);
   $('statWeek').textContent = fmtSure(hafta);
-  $('weekFill').style.width = Math.min(100, hafta / WEEKLY_GOAL * 100) + '%';
-  $('weekNote').textContent = hafta >= WEEKLY_GOAL
+  $('weekFill').style.width = Math.min(100, hafta / weeklyGoal * 100) + '%';
+  $('weekNote').textContent = hafta >= weeklyGoal
     ? 'hedef tamam, süpersin! 🏆'
-    : `hedef ${fmtSure(WEEKLY_GOAL)} · %${Math.round(hafta / WEEKLY_GOAL * 100)}`;
+    : `hedef ${fmtSure(weeklyGoal)} · %${Math.round(hafta / weeklyGoal * 100)}`;
 
   // En sık ders (oturum sayısı + dakika)
   const map = {};
@@ -69,7 +69,7 @@ function updateStatistics(){
   });
   const top = Object.entries(map).sort((a,b) => b[1].adet - a[1].adet)[0];
   $('statTop').textContent     = top ? top[0] : '—';
-  $('statTop').style.color     = top ? (renkMap[top[0]] || 'inherit') : 'inherit';
+  $('statTop').style.color     = top ? renkOf(top[0]) : 'inherit';
   $('statTopNote').textContent = top ? `${top[1].adet} oturum · ${fmtSure(top[1].dk)}` : 'veri bekleniyor';
 
   // Seri (üst üste çalışılan gün)
@@ -84,21 +84,50 @@ function updateStatistics(){
   const entries = Object.entries(map).sort((a,b) => b[1].dk - a[1].dk);
   $('distBar').innerHTML = entries.map(([ad,v]) =>
     `<div class="dist-seg" data-w="${total ? v.dk/total*100 : 0}"
-          style="background:${renkMap[ad] || '#7a8499'}" title="${esc(ad)}"></div>`).join('');
+          style="background:${renkOf(ad)}" title="${esc(ad)}"></div>`).join('');
   requestAnimationFrame(() =>
     document.querySelectorAll('.dist-seg').forEach(el => el.style.width = el.dataset.w + '%'));
   $('distLegend').innerHTML = entries.map(([ad,v]) =>
-    `<span style="--c:${renkMap[ad] || '#7a8499'}"><i></i>${esc(ad)}
+    `<span style="--c:${renkOf(ad)}"><i></i>${esc(ad)}
       <em>${fmtSure(v.dk)} · %${total ? Math.round(v.dk/total*100) : 0}</em></span>`).join('')
     || '<em>Henüz veri yok.</em>';
 }
 
 function refreshFilterOptions(){
   const sel = $('filterDers'), aktif = sel.value;
-  const dersler = [...new Set(studies.map(s => s.ders))].sort((a,b) => a.localeCompare(b,'tr'));
+  const adlar = [...new Set(studies.map(s => s.ders))].sort((a,b) => a.localeCompare(b,'tr'));
   sel.innerHTML = '<option value="">Tümü</option>' +
-    dersler.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
+    adlar.map(d => `<option value="${esc(d)}">${esc(d)}</option>`).join('');
   sel.value = aktif;
+}
+
+/* Ders çipleri: canlı ders listesinden çizilir (özel dersler dahil).
+   Renk ve açık ton (--cd, color-mix yerine) JS'te hesaplanır. */
+function renderChips(){
+  const secili = document.querySelector('input[name="ders"]:checked');
+  const seciliDers = secili ? secili.value : '';
+  $('dersChips').innerHTML = dersler.map((d,i) => `
+    <input type="radio" name="ders" id="ders-${i}" value="${esc(d.ad)}"${d.ad === seciliDers ? ' checked' : ''}>
+    <label for="ders-${i}" style="--c:${d.renk};--cd:${mixWithWhite(d.renk, .16)}">${esc(d.ad)}</label>`).join('');
+}
+
+/* Ayarlar modalının içeriği: haftalık hedef + ders listesi.
+   'Diğer' silinemez; kaydı olan dersler için silme butonu gösterilmez. */
+function renderSettings(){
+  $('inputGoal').value = weeklyGoal;
+  $('subjectList').innerHTML = dersler.map(d => {
+    const adet = studies.filter(s => s.ders === d.ad).length;
+    const silinebilir = d.ad !== 'Diğer' && adet === 0;
+    return `<li>
+      <span class="sub-dot" style="background:${d.renk}"></span>
+      <span class="sub-name">${esc(d.ad)}</span>
+      <em class="sub-count">${adet} kayıt</em>
+      ${silinebilir
+        ? `<button type="button" class="icon-btn del sub-del" data-del="${esc(d.ad)}"
+             aria-label="${esc(d.ad)} dersini sil">✕</button>`
+        : ''}
+    </li>`;
+  }).join('');
 }
 
 function renderAll(){ renderTable(); updateStatistics(); refreshFilterOptions(); }
@@ -124,7 +153,8 @@ function closeOverlay(overlay){
 function trapFocus(e){
   if (e.key !== 'Tab') return;
   const overlay = $('overlay').classList.contains('open') ? $('overlay')
-    : $('importOverlay').classList.contains('open') ? $('importOverlay') : null;
+    : $('importOverlay').classList.contains('open') ? $('importOverlay')
+    : $('settingsOverlay').classList.contains('open') ? $('settingsOverlay') : null;
   if (!overlay) return;
   const odaklar = Array.from(overlay.querySelectorAll(
     'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
@@ -154,6 +184,14 @@ function closeImportModal(){
 }
 function openImportModal(){
   openOverlay($('importOverlay'), $('btnImportReplace'));
+}
+function openSettings(){
+  renderSettings();
+  $('subjectError').textContent = '';
+  openOverlay($('settingsOverlay'), $('inputSubject'));
+}
+function closeSettings(){
+  closeOverlay($('settingsOverlay'));
 }
 function formHatasi(msg){
   $('formError').textContent = msg;

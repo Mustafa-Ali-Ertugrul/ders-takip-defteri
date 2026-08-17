@@ -126,7 +126,7 @@ tbody tr:hover td{background:rgba(255,225,77,.35)}
   font-size:.88rem;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:7px}
 .chips label::before{content:"";width:9px;height:9px;background:var(--c);transform:rotate(45deg)}
 .chips label:hover{transform:translateY(-2px);border-color:var(--c)}
-.chips input:checked+label{border-color:var(--c);background:color-mix(in srgb,var(--c) 16%,#fff);color:var(--c)}
+.chips input:checked+label{border-color:var(--c);background:var(--cd,#fff);color:var(--c)}
 .sure-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sure-row input{width:110px;border:2px solid var(--ink);padding:9px 10px;font-family:inherit;font-size:1rem}
 .mini-chip{border:2px solid var(--ink);background:#fff;padding:7px 11px;font-weight:700;cursor:pointer;transition:.15s}
@@ -137,6 +137,19 @@ tbody tr:hover td{background:rgba(255,225,77,.35)}
 .form-error{font-family:'Caveat';font-size:1.25rem;color:var(--red);min-height:1.5em;margin-top:12px}
 .modal-actions{display:flex;justify-content:flex-end;gap:12px;margin-top:18px}
 .modal select{width:100%;border:2px solid var(--ink);background:#fff;padding:9px 10px;font-family:inherit;font-size:.95rem}
+
+/* ---------- ayarlar modalı ---------- */
+.goal-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.goal-row input{width:130px;border:2px solid var(--ink);padding:9px 10px;font-family:inherit;font-size:1rem;background:#fff}
+.subject-list{list-style:none;border:2px solid var(--ink);background:#fff;max-height:220px;overflow:auto}
+.subject-list li{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid rgba(28,43,74,.12)}
+.subject-list li:last-child{border-bottom:none}
+.sub-dot{width:11px;height:11px;transform:rotate(45deg);flex:none;box-shadow:2px 2px 0 rgba(28,43,74,.18)}
+.sub-name{font-weight:600;flex:1;word-break:break-word}
+.sub-count{font-style:normal;color:var(--ink-soft);font-size:.82rem;white-space:nowrap}
+.sub-del{width:30px;height:30px;font-size:12px}
+.subject-add-row{display:flex;gap:10px;flex-wrap:wrap}
+.subject-add-row input{flex:1;min-width:170px;border:2px solid var(--ink);padding:9px 10px;font-family:inherit;font-size:.95rem;background:#fff}
 
 /* ---------- toast ---------- */
 #toasts{position:fixed;right:18px;bottom:18px;display:flex;flex-direction:column;gap:10px;z-index:80}

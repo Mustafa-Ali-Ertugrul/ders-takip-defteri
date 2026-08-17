@@ -67,8 +67,10 @@ function deleteStudy(id){
 }
 
 /* Yedekten geri yükleme — her alanı tekrar doğrulayarak temizle,
-   sonra Değiştir / Birleştir tercihini uygulama içi modalda sor. */
-let importBekleyen = null; // modal onayına kadar bekleyen temizlenmiş kayıt listesi
+   sonra Değiştir / Birleştir tercihini uygulama içi modalda sor.
+   Bilinmeyen geçerli ders adları otomatik ders listesine alınır;
+   liste ancak kullanıcı onaylarsa (Değiştir/Birleştir) kalıcı olur. */
+let importBekleyen = null; // { kayitlar, dersler, eklenen }
 
 function importStudies(event){
   const file = event.target.files[0];
@@ -84,11 +86,16 @@ function importStudies(event){
     if (!Array.isArray(data))
       return toast('Dosya biçimi hatalı — kayıt listesi (dizi) bekleniyordu.', 'danger');
 
-    // Kayıt temizliği saf çekirdeğe emanet: ders beyaz listesi, süre/tarih sınırı, tekil id
-    const temiz = sanitizeStudies(data);
+    // İlk temizlik geçici genişletilmiş listeye karşı yapılır; kaydı elenen
+    // satırların (bozuk süre/tarih) ders adları kalıcı listeye girmez.
+    const gecici = extendSubjects(dersler, data.map(k => (k && typeof k === 'object') ? k.ders : null));
+    const temiz = sanitizeStudies(data, { dersler: gecici.liste });
     if (!temiz.length) return toast('Yedek dosyasında geçerli kayıt bulunamadı.', 'danger');
 
-    importBekleyen = temiz;
+    // Kalıcı genişletme yalnızca hayatta kalan (temiz) kayıtların ders adlarından
+    const genisleyen = extendSubjects(dersler, temiz.map(r => r.ders));
+
+    importBekleyen = { kayitlar: temiz, dersler: genisleyen.liste, eklenen: genisleyen.eklenen };
     $('importInfo').textContent = `Dosyada ${temiz.length} geçerli kayıt bulundu. ` +
       `"Değiştir" mevcut ${studies.length} kaydın yerine yazar, ` +
       `"Birleştir" ekler (aynı kimlikli kayıtlar atlanır).`;
@@ -98,10 +105,18 @@ function importStudies(event){
 }
 
 function importUygula(mod){
-  const temiz = importBekleyen;
+  const bekleyen = importBekleyen;
   importBekleyen = null;
   closeImportModal();
-  if (!temiz) return;
+  if (!bekleyen) return;
+  const temiz = bekleyen.kayitlar;
+
+  // Otomatik oluşturulan dersleri kalıcı yap (çipler + renkler güncellenir)
+  if (bekleyen.eklenen > 0) {
+    dersler = bekleyen.dersler;
+    saveDersler(dersler);
+    renderChips();
+  }
 
   if (mod === 'birlestir'){
     const mevcut = new Set(studies.map(s => s.id));
@@ -125,12 +140,53 @@ function importIptal(){
   closeImportModal();
 }
 
+/* ---------- M6: AYARLAR — özel dersler + haftalık hedef ---------- */
+function addSubject(e){
+  e.preventDefault();
+  const input = $('inputSubject');
+  const sonuc = validateSubjectName(input.value, dersler);
+  if (sonuc.hata) { $('subjectError').textContent = sonuc.hata; return; }
+  const genisleyen = extendSubjects(dersler, [sonuc.ad]);
+  dersler = genisleyen.liste;
+  saveDersler(dersler);
+  input.value = '';
+  $('subjectError').textContent = '';
+  renderSettings();
+  renderChips();
+  toast(`"${sonuc.ad}" dersi eklendi ✔`, 'success');
+}
+
+function deleteSubject(ad){
+  if (ad === 'Diğer') return toast('Varsayılan "Diğer" dersi silinemez.', 'danger');
+  const adet = studies.filter(s => s.ders === ad).length;
+  if (adet > 0)
+    return toast(`"${ad}" için ${adet} kayıt var — önce o kayıtları sil.`, 'danger');
+  dersler = dersler.filter(d => d.ad !== ad);
+  saveDersler(dersler);
+  renderSettings();
+  renderChips();
+  renderAll();
+  toast(`"${ad}" dersi silindi.`, 'success');
+}
+
+function saveGoal(){
+  const g = sanitizeGoal($('inputGoal').value);
+  if (g === null)
+    return toast('Hedef 30–3000 dakika aralığında olmalı.', 'danger');
+  weeklyGoal = g;
+  saveGoalValue(g);
+  updateStatistics();
+  toast(`Haftalık hedef: ${fmtSure(g)} 🎯`, 'success');
+}
+
 /* ---------- başlangıç kurulumu ---------- */
 function init(){
-  // Ders çipleri
-  $('dersChips').innerHTML = DERSLER.map((d,i) => `
-    <input type="radio" name="ders" id="ders-${i}" value="${d.ad}">
-    <label for="ders-${i}" style="--c:${d.renk}">${d.ad}</label>`).join('');
+  // Depo tohumlama: ders listesi + haftalık hedef hazırlanır,
+  // kayıtlar GÜNCEL ders listesiyle okunur (özel dersler korunur)
+  bootstrap();
+
+  // Ders çipleri (canlı ders listesinden)
+  renderChips();
 
   // Bugünün tarihi
   const bugun = toISO(new Date());
@@ -163,6 +219,7 @@ function init(){
     if (e.key === 'Escape') {
       if ($('overlay').classList.contains('open')) closeModal();
       if ($('importOverlay').classList.contains('open')) importIptal();
+      if ($('settingsOverlay').classList.contains('open')) closeSettings();
     }
     if (e.key === 'Tab') trapFocus(e);
   });
@@ -198,6 +255,18 @@ function init(){
   $('btnImportMerge').addEventListener('click', () => importUygula('birlestir'));
   $('btnImportCancel').addEventListener('click', importIptal);
   $('btnImportClose').addEventListener('click', importIptal);
+
+  // Ayarlar modalı
+  $('btnSettings').addEventListener('click', openSettings);
+  $('btnSettingsClose').addEventListener('click', closeSettings);
+  $('btnSettingsDone').addEventListener('click', closeSettings);
+  $('settingsOverlay').addEventListener('click', e => { if (e.target === $('settingsOverlay')) closeSettings(); });
+  $('subjectForm').addEventListener('submit', addSubject);
+  $('subjectList').addEventListener('click', e => {
+    const btn = e.target.closest('[data-del]');
+    if (btn) deleteSubject(btn.dataset.del);
+  });
+  $('btnSaveGoal').addEventListener('click', saveGoal);
 }
 
 /* DOMContentLoaded: sayfa açılır açılmaz tabloyu ve istatistikleri çiz */

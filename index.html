@@ -73,6 +73,7 @@
       <input type="file" id="fileImport" accept=".json,application/json" hidden>
       <button class="btn btn-mini" id="btnImport" title="JSON yedeğinden kayıtları geri yükle">⤒ Yedek Yükle</button>
       <button class="btn btn-mini" id="btnExport">⤓ JSON Yedek</button>
+      <button class="btn btn-mini" id="btnSettings" title="Dersler ve haftalık hedef">⚙ Ayarlar</button>
     </div>
 
     <div class="table-wrap">
@@ -142,6 +143,35 @@
       <button type="button" class="btn btn-ghost" id="btnImportCancel">Vazgeç</button>
       <button type="button" class="btn btn-ghost" id="btnImportMerge">Birleştir</button>
       <button type="button" class="btn btn-primary" id="btnImportReplace">Değiştir</button>
+    </div>
+  </div>
+</div>
+
+<!-- AYARLAR MODALI -->
+<div class="overlay" id="settingsOverlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <button class="modal-x" id="btnSettingsClose" aria-label="Kapat">✕</button>
+    <h2 id="settingsTitle">Ayarlar ⚙</h2>
+
+    <span class="f-label">Haftalık Hedef (dakika)</span>
+    <div class="goal-row">
+      <input type="number" id="inputGoal" min="30" max="3000" step="5" placeholder="ör. 300">
+      <button type="button" class="btn btn-primary" id="btnSaveGoal">Hedefi Kaydet</button>
+    </div>
+
+    <span class="f-label">Dersler</span>
+    <ul class="subject-list" id="subjectList"></ul>
+
+    <form id="subjectForm" novalidate>
+      <div class="subject-add-row">
+        <input type="text" id="inputSubject" maxlength="50" placeholder="Yeni ders adı…">
+        <button type="submit" class="btn btn-ghost" id="btnAddSubject">+ Ders Ekle</button>
+      </div>
+      <p class="form-error" id="subjectError" role="alert"></p>
+    </form>
+
+    <div class="modal-actions">
+      <button type="button" class="btn btn-primary" id="btnSettingsDone">Tamam</button>
     </div>
   </div>
 </div>

@@ -166,6 +166,81 @@ with sync_playwright() as p:
     page.keyboard.press("Escape"); page.wait_for_timeout(300)
     check("M5: Escape import modalını kapattı", page.locator("#importOverlay.open").count() == 0)
 
+    # ---------- M6: AYARLAR — özel dersler + haftalık hedef ----------
+    page.set_viewport_size({"width":1440,"height":1000}); page.wait_for_timeout(300)
+
+    # Ayarlar açılır, aria doğru, odak ders adı girişinde
+    page.click("#btnSettings"); page.wait_for_timeout(300)
+    a_modal = page.locator("#settingsOverlay .modal")
+    check("M6: ayarlar modalı açıldı", page.locator("#settingsOverlay.open").count() == 1)
+    check("M6: ayarlar modalı aria doğru",
+          a_modal.get_attribute("role") == "dialog" and a_modal.get_attribute("aria-modal") == "true")
+    check("M6: odak ders adı girişinde",
+          page.evaluate("document.activeElement.id") == "inputSubject")
+
+    # Varsayılan 9 ders + 'Diğer' silinemez (butonu yok)
+    check("M6: varsayılan 9 ders listeleniyor", page.locator("#subjectList li").count() == 9)
+    check("M6: 'Diğer' silinemez (buton yok)",
+          page.locator('#subjectList button[data-del="Diğer"]').count() == 0)
+
+    # Boş ad reddedilir
+    page.fill("#inputSubject", ""); page.click("#btnAddSubject"); page.wait_for_timeout(300)
+    check("M6: boş ders adı reddedildi", "boş" in page.locator("#subjectError").inner_text().lower())
+
+    # Yinelenen ad reddedilir (büyük/küçük harf duyarsız)
+    page.fill("#inputSubject", "MATEMATİK"); page.click("#btnAddSubject"); page.wait_for_timeout(300)
+    check("M6: yinelenen ders adı reddedildi", "zaten" in page.locator("#subjectError").inner_text().lower())
+
+    # Geçerli yeni ders eklenir
+    page.fill("#inputSubject", "Müzik"); page.click("#btnAddSubject"); page.wait_for_timeout(400)
+    check("M6: yeni ders eklendi (10 ders)", page.locator("#subjectList li").count() == 10)
+    check("M6: yeni ders çiplere yansıdı",
+          page.evaluate("document.querySelectorAll('#dersChips input[name=ders]').length") == 10)
+
+    # Haftalık hedef: geçersiz değer reddedilir, geçerlisi kaydedilir
+    page.fill("#inputGoal", "5"); page.click("#btnSaveGoal"); page.wait_for_timeout(300)
+    check("M6: geçersiz hedef reddedildi (hedef hâlâ 5 sa)", "hedef 5 sa" in page.locator("#weekNote").inner_text())
+    page.fill("#inputGoal", "600"); page.click("#btnSaveGoal"); page.wait_for_timeout(300)
+    check("M6: hedef 600 dk kaydedildi", "hedef 10 sa" in page.locator("#weekNote").inner_text())
+
+    # Escape ayarları kapatır + focus return
+    page.keyboard.press("Escape"); page.wait_for_timeout(300)
+    check("M6: Escape ayarları kapattı", page.locator("#settingsOverlay.open").count() == 0)
+    check("M6: odak açan butona geri döndü",
+          page.evaluate("document.activeElement.id") == "btnSettings")
+
+    # Kalıcılık: ders listesi + hedef yenileme sonrası duruyor
+    page.reload(); page.wait_for_load_state("networkidle")
+    check("M6: yenileme sonrası 10 ders çipi duruyor",
+          page.evaluate("document.querySelectorAll('#dersChips input[name=ders]').length") == 10)
+    check("M6: yenileme sonrası hedef duruyor", "hedef 10 sa" in page.locator("#weekNote").inner_text())
+
+    # Boş ders silinir; kaydı olan ders silinemez
+    page.click("#btnSettings"); page.wait_for_timeout(300)
+    page.click('#subjectList button[data-del="Müzik"]'); page.wait_for_timeout(400)
+    check("M6: boş ders silindi (9 ders kaldı)", page.locator("#subjectList li").count() == 9)
+    page.keyboard.press("Escape"); page.wait_for_timeout(200)
+
+    # ---------- M6: IMPORT — bilinmeyen ders otomatik oluşturulur ----------
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
+        json.dump(SEED + [{"id":"m1","ders":"Satranç","sure":40,"tarih":"2026-08-12","not":"açılış"}],
+                  tf, ensure_ascii=False); ozel_path = tf.name
+    page.set_input_files("#fileImport", ozel_path); page.wait_for_timeout(700)
+    page.click("#btnImportMerge"); page.wait_for_timeout(500)
+    check("M6: import bilinmeyen dersle birleştirildi (4 kayıt)",
+          page.locator("#studyTbody tr").count() == 4)
+    check("M6: 'Satranç' çiplere otomatik eklendi",
+          page.evaluate("document.querySelectorAll('#dersChips input[name=ders]').length") == 10)
+
+    # Vazgeç durumunda ders listesi değişmemeli: geçersiz içerikli import + Vazgeç
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
+        json.dump([{"id":"m2","ders":"Astronomi","sure":20,"tarih":"2026-08-12"}],
+                  tf, ensure_ascii=False); astron_path = tf.name
+    page.set_input_files("#fileImport", astron_path); page.wait_for_timeout(700)
+    page.click("#btnImportCancel"); page.wait_for_timeout(300)
+    check("M6: Vazgeç — ders listesi değişmedi",
+          page.evaluate("document.querySelectorAll('#dersChips input[name=ders]').length") == 10)
+
     # ---------- istatistikler ----------
     check("İstatistik: en sık ders hesaplanıyor", page.locator("#statTop").inner_text() not in ("—",""))
     check("İstatistik: seri hesaplanıyor", "gün" in page.locator("#statStreak").inner_text())

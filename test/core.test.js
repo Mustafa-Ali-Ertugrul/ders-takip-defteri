@@ -296,3 +296,128 @@ test('mixWithWhite: geçersiz giriş ve oran kelepçesi', () => {
   assert.equal(mixWithWhite('#2f6fd0', 5), '#ffffff');   // oran 1'e kelepçelenir
   assert.equal(mixWithWhite('#2f6fd0', -3), '#2f6fd0');  // oran 0'a kelepçelenir
 });
+
+/* ============================================================
+   M6 — ders listesi ve haftalık hedef yardımcıları
+============================================================ */
+const {
+  PALET, RENK_DIGER, DERSLER,
+  renkGecerliMi, extendSubjects, sanitizeSubjects, validateSubjectName, sanitizeGoal
+} = core;
+
+/* ---------- renkGecerliMi ---------- */
+test('renkGecerliMi: #rrggbb geçerli, gerisi geçersiz', () => {
+  assert.equal(renkGecerliMi('#2f6fd0'), true);
+  assert.equal(renkGecerliMi('#ABCDEF'), true);   // büyük harf serbest
+  assert.equal(renkGecerliMi('#abc'), false);     // kısa yazım geçersiz
+  assert.equal(renkGecerliMi('2f6fd0'), false);
+  assert.equal(renkGecerliMi('#gggggg'), false);
+  assert.equal(renkGecerliMi(null), false);
+});
+
+/* ---------- extendSubjects ---------- */
+test('extendSubjects: yeni ad eklenir, mevcut atlanır (büyük/küçük duyarsız)', () => {
+  const temel = [{ ad:'Matematik', renk:'#2f6fd0' }, { ad:'Diğer', renk:RENK_DIGER }];
+  const { liste, eklenen } = extendSubjects(temel, ['Müzik', 'MATEMATİK', ' müzik ', null, 5]);
+  assert.equal(eklenen, 1);
+  assert.deepEqual(liste.map(d => d.ad), ['Matematik','Diğer','Müzik']);
+});
+
+test('extendSubjects: boş ve 50 karakterden uzun adlar atlanır', () => {
+  const temel = [{ ad:'Matematik', renk:'#2f6fd0' }];
+  const { liste, eklenen } = extendSubjects(temel, ['', '   ', 'x'.repeat(51), 'Tamam']);
+  assert.equal(eklenen, 1);
+  assert.deepEqual(liste.map(d => d.ad), ['Matematik','Tamam']);
+});
+
+test('extendSubjects: renk paletten sırayla gelir, 8 renkten sonra başa döner', () => {
+  let liste = [];
+  for (let i = 0; i < 9; i++) {
+    const r = extendSubjects(liste, ['D' + i]);
+    liste = r.liste;
+  }
+  assert.equal(liste.length, 9);
+  assert.equal(liste[0].renk, PALET[0]);
+  assert.equal(liste[7].renk, PALET[7]);
+  assert.equal(liste[8].renk, PALET[0]); // palet başa döndü
+});
+
+test('extendSubjects: girdi liste değiştirilmez (kopya döner)', () => {
+  const temel = [{ ad:'Matematik', renk:'#2f6fd0' }];
+  const { liste } = extendSubjects(temel, ['Fizik']);
+  assert.equal(temel.length, 1);
+  assert.notEqual(liste[0], temel[0]); // yeni nesne, aynı referans değil
+});
+
+test('extendSubjects: boş/girdisiz çağrı güvenli', () => {
+  assert.deepEqual(extendSubjects(null, null), { liste: [], eklenen: 0 });
+  assert.equal(extendSubjects([], ['A']).eklenen, 1);
+});
+
+/* ---------- sanitizeSubjects ---------- */
+test('sanitizeSubjects: geçersiz giriş varsayılan DERSLER döndürür', () => {
+  assert.deepEqual(sanitizeSubjects(null), DERSLER);
+  assert.deepEqual(sanitizeSubjects({}), DERSLER);
+  assert.deepEqual(sanitizeSubjects([]), DERSLER);        // boş liste → varsayılan
+  assert.deepEqual(sanitizeSubjects([null, 3, {}]), DERSLER);
+});
+
+test('sanitizeSubjects: geçerli liste temizlenir; yinelenen ve bozuk adlar elenir', () => {
+  const ham = [
+    { ad:'Fizik', renk:'#e2802e' },
+    { ad:'fizik', renk:'#111111' },      // yineleme (küçük/büyük duyarsız) → atlanır
+    { ad:'', renk:'#111111' },           // boş ad → atlanır
+    { ad:'x'.repeat(51) },               // uzun ad → atlanır
+    { ad:'Müzik', renk:'bozuk' },        // bozuk renk → paletten tamamlanır
+    null,
+  ];
+  const temiz = sanitizeSubjects(ham);
+  assert.deepEqual(temiz.map(d => d.ad), ['Fizik','Müzik','Diğer']); // Diğer eklenir
+  assert.equal(temiz[0].renk, '#e2802e'); // geçerli renk korunur
+  assert.match(temiz[1].renk, /^#[0-9a-f]{6}$/i); // bozuk renk paletle tamamlanır
+});
+
+test("sanitizeSubjects: 'Diğer' yoksa her zaman eklenir, varsa dokunulmaz", () => {
+  const onsuz = sanitizeSubjects([{ ad:'Matematik', renk:'#2f6fd0' }]);
+  assert.equal(onsuz[onsuz.length - 1].ad, 'Diğer');
+  assert.equal(onsuz[onsuz.length - 1].renk, RENK_DIGER);
+
+  const ozel = sanitizeSubjects([{ ad:'Diğer', renk:'#123456' }, { ad:'X', renk:'#222222' }]);
+  const digeri = ozel.find(d => d.ad === 'Diğer');
+  assert.equal(digeri.renk, '#123456'); // kullanıcının rengi korunur, ikinci kez eklenmez
+  assert.equal(ozel.filter(d => d.ad === 'Diğer').length, 1);
+});
+
+/* ---------- validateSubjectName ---------- */
+test('validateSubjectName: boş, uzun, yinelenen ve geçerli adlar', () => {
+  const mevcut = [{ ad:'Matematik', renk:'#2f6fd0' }];
+  assert.match(validateSubjectName('', mevcut).hata, /boş/);
+  assert.match(validateSubjectName('   ', mevcut).hata, /boş/);
+  assert.match(validateSubjectName('x'.repeat(51), mevcut).hata, /50/);
+  assert.match(validateSubjectName('matematik', mevcut).hata, /zaten/); // tr-İ: 'matematik' ↔ 'Matematik'
+  assert.match(validateSubjectName('MATEMATİK', mevcut).hata, /zaten/);
+
+  const ok = validateSubjectName('  Müzik  ', mevcut);
+  assert.equal(ok.hata, null);
+  assert.equal(ok.ad, 'Müzik'); // kırpılır
+});
+
+test('validateSubjectName: boş mevcut listeyle hiçbir ad yinelenmez', () => {
+  assert.equal(validateSubjectName('Matematik', []).hata, null);
+  assert.equal(validateSubjectName('Matematik', null).hata, null);
+});
+
+/* ---------- sanitizeGoal ---------- */
+test('sanitizeGoal: sınırlar ve yuvarlama', () => {
+  assert.equal(sanitizeGoal(300), 300);
+  assert.equal(sanitizeGoal(30), 30);
+  assert.equal(sanitizeGoal(3000), 3000);
+  assert.equal(sanitizeGoal(29), null);
+  assert.equal(sanitizeGoal(3001), null);
+  assert.equal(sanitizeGoal('450'), 450);      // dize girişi
+  assert.equal(sanitizeGoal('45.4'), 45);      // tamsayıya yuvarlanır
+  assert.equal(sanitizeGoal('abc'), null);
+  assert.equal(sanitizeGoal(null), null);
+  assert.equal(sanitizeGoal(undefined), null);
+  assert.equal(sanitizeGoal(NaN), null);
+});
