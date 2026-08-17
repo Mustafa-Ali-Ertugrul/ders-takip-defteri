@@ -135,6 +135,37 @@ with sync_playwright() as p:
     check("IMPORT: geçersiz kayıtlar filtrelenir (sadece 3 geçerli yüklenir)",
           page.locator("#studyTbody tr").count() == 3)
 
+    # ---------- M5: modal erişilebilirlik ----------
+    # Çalışma modalı: aria nitelikleri, focus trap, Escape, focus return
+    page.fill("#searchInput","")
+    page.click("#btnAdd"); page.wait_for_timeout(300)
+    modal = page.locator("#overlay .modal")
+    check("M5: modal aria-modal/role doğru",
+          modal.get_attribute("role") == "dialog" and modal.get_attribute("aria-modal") == "true")
+    check("M5: modal açılışta odak #inputSure'a geçti",
+          page.evaluate("document.activeElement.id") == "inputSure")
+    # Focus trap: Tab ile son elemandan ilkine dönmeli
+    page.locator("#btnSubmit").focus()
+    page.keyboard.press("Tab"); page.wait_for_timeout(150)
+    check("M5: Tab son elemandan ilkine döndü (trap)",
+          page.evaluate("document.activeElement.id") == "btnClose")
+    page.keyboard.press("Shift+Tab"); page.wait_for_timeout(150)
+    check("M5: Shift+Tab ters yönde trap çalışıyor",
+          page.evaluate("document.activeElement.id") == "btnSubmit")
+    # Escape ile kapanma + focus return
+    page.keyboard.press("Escape"); page.wait_for_timeout(300)
+    check("M5: Escape çalışma modalını kapattı", page.locator("#overlay.open").count() == 0)
+    check("M5: odak modalı açan butona geri döndü",
+          page.evaluate("document.activeElement.id") == "btnAdd")
+    # İçe aktarma onayı açma + Escape
+    page.click("#btnAdd"); page.wait_for_timeout(250)
+    page.keyboard.press("Escape"); page.wait_for_timeout(200)
+    page.set_input_files("#fileImport", import_path); page.wait_for_timeout(600)
+    check("M5: import modalında odak Değiştir butonunda",
+          page.evaluate("document.activeElement.id") == "btnImportReplace")
+    page.keyboard.press("Escape"); page.wait_for_timeout(300)
+    check("M5: Escape import modalını kapattı", page.locator("#importOverlay.open").count() == 0)
+
     # ---------- istatistikler ----------
     check("İstatistik: en sık ders hesaplanıyor", page.locator("#statTop").inner_text() not in ("—",""))
     check("İstatistik: seri hesaplanıyor", "gün" in page.locator("#statStreak").inner_text())

@@ -103,35 +103,57 @@ function refreshFilterOptions(){
 
 function renderAll(){ renderTable(); updateStatistics(); refreshFilterOptions(); }
 
+/* ---------- ERIŞILEBILIRLIK: overlay aç/kapa + odak yönetimi ----------
+   Açılışta önceki odak saklanır, kapanışta geri verilir (focus return). */
+let odakKaynagi = null;
+
+function openOverlay(overlay, odakEl){
+  odakKaynagi = document.activeElement;
+  overlay.classList.add('open');
+  overlay.setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  if (odakEl) setTimeout(() => odakEl.focus(), 120);
+}
+function closeOverlay(overlay){
+  overlay.classList.remove('open');
+  overlay.setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+  if (odakKaynagi) { odakKaynagi.focus(); odakKaynagi = null; }
+}
+/* Tab tuşunu açık overlayin sınırları içinde çevreler (focus trap) */
+function trapFocus(e){
+  if (e.key !== 'Tab') return;
+  const overlay = $('overlay').classList.contains('open') ? $('overlay')
+    : $('importOverlay').classList.contains('open') ? $('importOverlay') : null;
+  if (!overlay) return;
+  const odaklar = Array.from(overlay.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+    .filter(el => !el.disabled && el.offsetParent !== null);
+  if (!odaklar.length) return;
+  const ilk = odaklar[0], son = odaklar[odaklar.length - 1];
+  if (e.shiftKey && document.activeElement === ilk) { son.focus(); e.preventDefault(); }
+  else if (!e.shiftKey && document.activeElement === son) { ilk.focus(); e.preventDefault(); }
+}
+
 /* ============================================================
    MODAL, TOAST, DİĞER ETKİLEŞİMLER
 ============================================================ */
 function openModal(){
-  $('overlay').classList.add('open');
-  $('overlay').setAttribute('aria-hidden','false');
-  document.body.classList.add('modal-open');
-  setTimeout(() => $('inputSure').focus(), 120);
+  openOverlay($('overlay'), $('inputSure'));
 }
 function closeModal(){
-  $('overlay').classList.remove('open');
-  $('overlay').setAttribute('aria-hidden','true');
-  document.body.classList.remove('modal-open');
   $('studyForm').reset();
   $('formError').textContent = '';
   editId = null;
   $('modalTitle').textContent = 'Çalışma Ekle ✎';
   $('btnSubmit').textContent  = 'Kaydet';
+  closeOverlay($('overlay'));
 }
 function closeImportModal(){
-  $('importOverlay').classList.remove('open');
-  $('importOverlay').setAttribute('aria-hidden','true');
-  document.body.classList.remove('modal-open');
+  closeOverlay($('importOverlay'));
 }
 function openImportModal(){
-  $('importOverlay').classList.add('open');
-  $('importOverlay').setAttribute('aria-hidden','false');
-  document.body.classList.add('modal-open');
-  setTimeout(() => $('btnImportReplace').focus(), 120);
+  openOverlay($('importOverlay'), $('btnImportReplace'));
 }
 function formHatasi(msg){
   $('formError').textContent = msg;

@@ -160,9 +160,11 @@ function init(){
   $('overlay').addEventListener('click', e => { if (e.target === $('overlay')) closeModal(); });
   $('importOverlay').addEventListener('click', e => { if (e.target === $('importOverlay')) importIptal(); });
   document.addEventListener('keydown', e => {
-    if (e.key !== 'Escape') return;
-    if ($('overlay').classList.contains('open')) closeModal();
-    if ($('importOverlay').classList.contains('open')) importIptal();
+    if (e.key === 'Escape') {
+      if ($('overlay').classList.contains('open')) closeModal();
+      if ($('importOverlay').classList.contains('open')) importIptal();
+    }
+    if (e.key === 'Tab') trapFocus(e);
   });
   $('studyForm').addEventListener('submit', saveStudy);
 
