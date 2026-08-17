@@ -47,18 +47,29 @@ function editStudy(id){
 }
 
 function deleteStudy(id){
-  const s = studies.find(x => x.id === id);
-  if (!s) return;
-  const onay = confirm(`"${s.ders} · ${fmtSure(s.sure)}" kaydını siliyorum. Emin misin?`);
-  if (!onay) return;
-  studies = studies.filter(x => x.id !== id);
+  const idx = studies.findIndex(x => x.id === id);
+  if (idx === -1) return;
+  // Onay yok: anında silinir, 7 sn boyunca "Geri Al" ile kurtarılabilir.
+  const [kayit] = studies.splice(idx, 1);
   if (editId === id) closeModal();
   saveStudies(studies);
   renderAll();
-  toast('Kayıt silindi 🗑', 'danger');
+  toast(`"${kayit.ders} · ${fmtSure(kayit.sure)}" silindi.`, 'danger', {
+    duration: 7000,
+    actionLabel: 'Geri Al',
+    action: () => {
+      studies.splice(Math.min(idx, studies.length), 0, kayit);
+      saveStudies(studies);
+      renderAll();
+      toast('Kayıt geri alındı ↩', 'success');
+    }
+  });
 }
 
-/* Yedekten geri yükleme — her alanı tekrar doğrulayarak temizle */
+/* Yedekten geri yükleme — her alanı tekrar doğrulayarak temizle,
+   sonra Değiştir / Birleştir tercihini uygulama içi modalda sor. */
+let importBekleyen = null; // modal onayına kadar bekleyen temizlenmiş kayıt listesi
+
 function importStudies(event){
   const file = event.target.files[0];
   event.target.value = '';
@@ -75,19 +86,43 @@ function importStudies(event){
 
     // Kayıt temizliği saf çekirdeğe emanet: ders beyaz listesi, süre/tarih sınırı, tekil id
     const temiz = sanitizeStudies(data);
-
     if (!temiz.length) return toast('Yedek dosyasında geçerli kayıt bulunamadı.', 'danger');
 
-    const degisecek = (studies.length ? 'mevcut ' : '') + 'kayıtların';
-    if (!confirm(`Yedekten ${temiz.length} kayıt yüklenecek ve ${degisecek} yerini alacak. Devam edilsin mi?`))
-      return;
+    importBekleyen = temiz;
+    $('importInfo').textContent = `Dosyada ${temiz.length} geçerli kayıt bulundu. ` +
+      `"Değiştir" mevcut ${studies.length} kaydın yerine yazar, ` +
+      `"Birleştir" ekler (aynı kimlikli kayıtlar atlanır).`;
+    openImportModal();
+  };
+  reader.readAsText(file);
+}
 
+function importUygula(mod){
+  const temiz = importBekleyen;
+  importBekleyen = null;
+  closeImportModal();
+  if (!temiz) return;
+
+  if (mod === 'birlestir'){
+    const mevcut = new Set(studies.map(s => s.id));
+    const yeniler = temiz.filter(r => !mevcut.has(r.id));
+    if (!yeniler.length)
+      return toast('Tüm kayıtlar zaten mevcut — eklenecek yeni kayıt yok.', 'danger');
+    studies.push(...yeniler);
+    saveStudies(studies);
+    renderAll();
+    toast(`${yeniler.length} kayıt birleştirildi ✔`, 'success');
+  } else { // degistir
     studies = temiz;
     saveStudies(studies);
     renderAll();
     toast(`${temiz.length} kayıt geri yüklendi ✔`, 'success');
-  };
-  reader.readAsText(file);
+  }
+}
+
+function importIptal(){
+  importBekleyen = null;
+  closeImportModal();
 }
 
 /* ---------- başlangıç kurulumu ---------- */
@@ -123,8 +158,11 @@ function init(){
   $('btnClose').addEventListener('click', closeModal);
   $('btnCancel').addEventListener('click', closeModal);
   $('overlay').addEventListener('click', e => { if (e.target === $('overlay')) closeModal(); });
+  $('importOverlay').addEventListener('click', e => { if (e.target === $('importOverlay')) importIptal(); });
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && $('overlay').classList.contains('open')) closeModal();
+    if (e.key !== 'Escape') return;
+    if ($('overlay').classList.contains('open')) closeModal();
+    if ($('importOverlay').classList.contains('open')) importIptal();
   });
   $('studyForm').addEventListener('submit', saveStudy);
 
@@ -154,6 +192,10 @@ function init(){
 
   $('btnImport').addEventListener('click', () => $('fileImport').click());
   $('fileImport').addEventListener('change', importStudies);
+  $('btnImportReplace').addEventListener('click', () => importUygula('degistir'));
+  $('btnImportMerge').addEventListener('click', () => importUygula('birlestir'));
+  $('btnImportCancel').addEventListener('click', importIptal);
+  $('btnImportClose').addEventListener('click', importIptal);
 }
 
 /* DOMContentLoaded: sayfa açılır açılmaz tabloyu ve istatistikleri çiz */

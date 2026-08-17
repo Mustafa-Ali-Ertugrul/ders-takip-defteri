@@ -132,6 +132,20 @@
 
 <div id="toasts"></div>
 
+<!-- YEDEK YÜKLEME ONAY MODALI -->
+<div class="overlay" id="importOverlay" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importTitle">
+    <button class="modal-x" id="btnImportClose" aria-label="Kapat">✕</button>
+    <h2 id="importTitle">Yedeği Geri Yükle ⤒</h2>
+    <p class="f-label" id="importInfo"></p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-ghost" id="btnImportCancel">Vazgeç</button>
+      <button type="button" class="btn btn-ghost" id="btnImportMerge">Birleştir</button>
+      <button type="button" class="btn btn-primary" id="btnImportReplace">Değiştir</button>
+    </div>
+  </div>
+</div>
+
 <script src="js/core.js"></script>
 <script src="js/storage.js"></script>
 <script src="js/ui.js"></script>

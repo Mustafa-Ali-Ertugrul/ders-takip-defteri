@@ -122,17 +122,58 @@ function closeModal(){
   $('modalTitle').textContent = 'Çalışma Ekle ✎';
   $('btnSubmit').textContent  = 'Kaydet';
 }
+function closeImportModal(){
+  $('importOverlay').classList.remove('open');
+  $('importOverlay').setAttribute('aria-hidden','true');
+  document.body.classList.remove('modal-open');
+}
+function openImportModal(){
+  $('importOverlay').classList.add('open');
+  $('importOverlay').setAttribute('aria-hidden','false');
+  document.body.classList.add('modal-open');
+  setTimeout(() => $('btnImportReplace').focus(), 120);
+}
 function formHatasi(msg){
   $('formError').textContent = msg;
   const m = document.querySelector('.modal');
   m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake');
 }
-function toast(msg, tip = 'success'){
+/* Toast: role="alert", kapatma (✕) ve opsiyonel aksiyon butonu.
+   opts = { duration, actionLabel, action }; süre verilmezse 3 sn. */
+function toast(msg, tip = 'success', opts){
+  opts = opts || {};
   const t = document.createElement('div');
   t.className = `toast ${tip}`;
-  t.textContent = msg;
+  t.setAttribute('role','alert');
+  const metin = document.createElement('span');
+  metin.textContent = msg;
+  t.appendChild(metin);
+
+  const sure = opts.duration || 3000;
+  if (opts.duration) { // 3 sn'lik animasyon yerine özel süreye bağla
+    t.style.animation = 'toastIn .35s cubic-bezier(.2,.9,.3,1.3), '
+      + `toastOut .3s ease ${Math.max(0, (sure - 300) / 1000)}s forwards`;
+  }
+
+  if (opts.actionLabel && opts.action) {
+    const a = document.createElement('button');
+    a.className = 'toast-action'; a.type = 'button';
+    a.textContent = opts.actionLabel;
+    a.addEventListener('click', () => { opts.action(); kapat(); });
+    t.appendChild(a);
+  }
+  const x = document.createElement('button');
+  x.className = 'toast-x'; x.type = 'button'; x.textContent = '✕';
+  x.setAttribute('aria-label','Kapat');
+  x.addEventListener('click', kapat);
+  t.appendChild(x);
+
+  let kapanmaz = false;
+  const zamanlayici = setTimeout(() => { if (!kapanmaz) t.remove(); }, sure);
+  function kapat(){ kapanmaz = true; clearTimeout(zamanlayici); t.remove(); }
+
   $('toasts').appendChild(t);
-  setTimeout(() => t.remove(), 3000);
+  return t;
 }
 function animateSure(el, hedef){
   const bas = el._val || 0, t0 = performance.now(), sure = 600;

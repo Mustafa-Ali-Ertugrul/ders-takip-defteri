@@ -37,8 +37,10 @@ with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page(viewport={"width":1440,"height":1000})
     console_errors = []
+    dialogs = []  # M4 sonrası hiçbir confirm()/prompt()/alert() kalmamalı
     page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
     page.on("pageerror", lambda e: console_errors.append(str(e)))
+    page.on("dialog", lambda d: dialogs.append(d) or d.dismiss())
 
     # ---------- boş durum ----------
     page.goto(URL); page.wait_for_load_state("networkidle")
@@ -74,10 +76,19 @@ with sync_playwright() as p:
     check("READ: 'İNGİLİZCE' araması (büyük İ)", page.locator("#studyTbody tr").count() == 1)
     page.fill("#searchInput","")
 
-    # ---------- DELETE ----------
-    page.once("dialog", lambda d: d.accept())
+    # ---------- DELETE (onay yok: anında sil + Geri Al) ----------
     page.locator("[data-action='del']").first.click(); page.wait_for_timeout(500)
-    check("DELETE: onaylı silme", page.locator("#studyTbody tr").count() == 1)
+    check("DELETE: onay sorulmadan anında silindi", page.locator("#studyTbody tr").count() == 1)
+    check("DELETE: Geri Al butonlu toast göründü", page.locator(".toast .toast-action").count() == 1)
+
+    # ---------- GERİ AL ----------
+    page.click(".toast .toast-action"); page.wait_for_timeout(500)
+    check("UNDO: geri alınan kayıt geri geldi", page.locator("#studyTbody tr").count() == 2)
+    page.locator(".toast .toast-x").first.click()
+
+    # ---------- DELETE (kalıcı) ----------
+    page.locator("[data-action='del']").first.click(); page.wait_for_timeout(500)
+    check("DELETE: ikinci silme ile 1 kayıt kaldı", page.locator("#studyTbody tr").count() == 1)
 
     # ---------- kalıcılık ----------
     page.reload(); page.wait_for_load_state("networkidle")
@@ -91,16 +102,22 @@ with sync_playwright() as p:
     check("EXPORT: yedek indirildi ve geçerli JSON", isinstance(exported, list) and len(exported) == 1,
           dl.value.suggested_filename)
 
-    # ---------- JSON IMPORT (geçerli dosya) ----------
+    # ---------- JSON IMPORT (geçerli dosya — Değiştir) ----------
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
         json.dump(SEED, tf, ensure_ascii=False); import_path = tf.name
     page.evaluate("() => localStorage.clear()"); page.reload(); page.wait_for_load_state("networkidle")
-    page.once("dialog", lambda d: d.accept())
     page.set_input_files("#fileImport", import_path); page.wait_for_timeout(700)
+    check("IMPORT: Değiştir/Birleştir modalı açıldı", page.locator("#importOverlay.open").count() == 1)
+    page.click("#btnImportReplace"); page.wait_for_timeout(500)
     check("IMPORT: yedekten 3 kayıt geri yüklendi", page.locator("#studyTbody tr").count() == 3)
     check("IMPORT: toplam süre doğru hesaplandı", "2 sa 15 dk" in page.locator("#statTotal").inner_text())
     page.reload(); page.wait_for_load_state("networkidle")
     check("IMPORT: geri yükleme sonrası kalıcı", page.locator("#studyTbody tr").count() == 3)
+
+    # ---------- JSON IMPORT (Birleştir — aynı kimlikli kayıtlar atlanır) ----------
+    page.set_input_files("#fileImport", import_path); page.wait_for_timeout(700)
+    page.click("#btnImportMerge"); page.wait_for_timeout(500)
+    check("IMPORT: Birleştir — yinelenen kayıtlar eklenmedi", page.locator("#studyTbody tr").count() == 3)
 
     # ---------- JSON IMPORT (geçersiz dosya reddedilir) ----------
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
@@ -113,8 +130,8 @@ with sync_playwright() as p:
     dirty = SEED + [{"id":"x1","ders":"UydurmaDers","sure":9999,"tarih":"2099-12-31","not":"geçersiz"}]
     with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
         json.dump(dirty, tf, ensure_ascii=False); dirty_path = tf.name
-    page.once("dialog", lambda d: d.accept())
     page.set_input_files("#fileImport", dirty_path); page.wait_for_timeout(700)
+    page.click("#btnImportReplace"); page.wait_for_timeout(500)
     check("IMPORT: geçersiz kayıtlar filtrelenir (sadece 3 geçerli yüklenir)",
           page.locator("#studyTbody tr").count() == 3)
 
@@ -127,6 +144,8 @@ with sync_playwright() as p:
     check("Mobil: tablo taşmadan görüntüleniyor", page.locator(".table-wrap").is_visible())
 
     check("Konsolda JS hatası yok", len(console_errors) == 0, "; ".join(console_errors[:3]))
+    check("Doğal dialog (confirm/alert) hiç açılmadı", len(dialogs) == 0,
+          "; ".join(dialogs[:2]))
     browser.close()
     server.shutdown()
 
