@@ -6,7 +6,7 @@
 
 ## Canlı Demo
 
-**https://mustafa-ali-ertugrul.github.io/ders-takip-defteri/**
+**https://mustafa-ali-ertugrul.github.io/Web_Gelistirme-JavaScript/**
 
 ## Özellikler
 
